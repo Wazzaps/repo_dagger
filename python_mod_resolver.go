@@ -53,6 +53,7 @@ func (res *PythonModuleResolver) Resolve(
 	py_path := dir_path + ".py"
 	pyx_path := dir_path + ".pyx"
 	pyi_path := dir_path + ".pyi"
+	pxd_path := dir_path + ".pxd"
 	c_path := dir_path + ".c"
 	if _, err := os.Stat(filepath.Join(base_dir, dir_path_init)); err == nil {
 		paths = append(paths, dir_path_init)
@@ -72,6 +73,10 @@ func (res *PythonModuleResolver) Resolve(
 	}
 	if _, err := os.Stat(filepath.Join(base_dir, pyi_path)); err == nil {
 		paths = append(paths, pyi_path)
+		visit_parent = true
+	}
+	if _, err := os.Stat(filepath.Join(base_dir, pxd_path)); err == nil {
+		paths = append(paths, pxd_path)
 		visit_parent = true
 	}
 	if _, err := os.Stat(filepath.Join(base_dir, c_path)); err == nil {

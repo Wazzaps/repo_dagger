@@ -37,7 +37,7 @@ path_rules:
     # Built-in python `import` parser (careful: it's based on regex, might break).
     # Does not handle dynamic imports, use regex_rules for that.
     # It will visit `module/__init__.py`, `module/`, `module.py`, `module.pyx`,
-    # `module.pyi`, and `module.c`.
+    # `module.pyi`, `module.pxd`, and `module.c`.
     visit_imported_python_modules: true
     # Same logic as in the pytest rule.
     visit_grand_siblings:

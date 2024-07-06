@@ -322,6 +322,14 @@ func visitFile(
 			}
 		}
 	}
+
+	// Ignore globally excluded files from the files we just added
+	*file_relations = slices.DeleteFunc(*file_relations, func(related_file string) bool {
+		// These patterns were already ran above, assume they can't fail
+		excluded, _ := checkExcludePatterns(config.GlobalExclude.items, related_file)
+		return excluded
+	})
+
 	return nil
 }
 
