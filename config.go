@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"os"
 
@@ -50,22 +52,24 @@ type Config struct {
 }
 
 // Load the yaml config
-func LoadConfig(path string) (*Config, error) {
+func LoadConfig(path string) (*Config, [32]byte, error) {
 	// Read the config file
-	file, err := os.Open(path)
+	file_data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open config file: %w", err)
+		return nil, [32]byte{}, fmt.Errorf("failed to read config file: %w", err)
 	}
-	defer file.Close()
 
 	// Decode the YAML data
 	var config Config
-	decoder := yaml.NewDecoder(file)
+	decoder := yaml.NewDecoder(bytes.NewReader(file_data))
 	decoder.KnownFields(true)
 	err = decoder.Decode(&config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode config file: %w", err)
+		return nil, [32]byte{}, fmt.Errorf("failed to decode config file: %w", err)
 	}
 
-	return &config, nil
+	// Hash the config file
+	configHash := sha256.Sum256(file_data)
+
+	return &config, configHash, nil
 }
