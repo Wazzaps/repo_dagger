@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
 	"log"
 	"os"
@@ -10,7 +9,6 @@ import (
 
 // ctx, fileHashes, all_files_set, base_dir
 func CalculateFileHashes(
-	ctx context.Context,
 	fileHashes map[string][32]byte,
 	all_files_set map[string]bool,
 	base_dir string,

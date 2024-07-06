@@ -49,6 +49,7 @@ type Args struct {
 	StatsSort        StatsSortVal
 	SelfProfile      bool
 	OutDepHashes     string
+	OutRelations     string
 }
 
 func parseArgs() (*Args, error) {
@@ -60,6 +61,7 @@ func parseArgs() (*Args, error) {
 	stats_sort := flag.String("stats-sort", "count", "Sort statistics by 'count' or 'name'")
 	self_profile := flag.Bool("self-profile", false, "Profile the program into 'repo_dagger.prof'")
 	out_dep_hashes := flag.String("out-dep-hashes", "", "Output dependency hashes to the specified file")
+	out_relations := flag.String("out-relations", "", "Output relations to the specified file")
 
 	// Parse command line args
 	flag.Parse()
@@ -81,6 +83,7 @@ func parseArgs() (*Args, error) {
 		StatsSort:        stats_sort_val,
 		SelfProfile:      *self_profile,
 		OutDepHashes:     *out_dep_hashes,
+		OutRelations:     *out_relations,
 	}, nil
 }
 
@@ -115,6 +118,7 @@ func main() {
 		log.Println("Config:")
 		spew.Fdump(os.Stderr, config)
 	}
+
 	// Iterate over the inputs
 	base_dir := filepath.Join(filepath.Dir(args.Config), config.Basedir)
 	log.Println("Base Directory:", base_dir)
@@ -134,30 +138,47 @@ func main() {
 		return
 	}
 
-	// Visit each file
+	// Visit each file recursively, to build the relations map
 	all_files_set := map[string]bool{}
 	file_relation_map := map[string][]string{}
 	log.Println("Generating dependency graph")
 	VisitRecursively(all_files_set, file_relation_map, input_files, config, args, base_dir)
 
-	ctx := context.Background()
-	maxWorkers := runtime.GOMAXPROCS(0)
-	sem := semaphore.NewWeighted(int64(maxWorkers))
+	if args.OutRelations != "" {
+		// Write as json
+		log.Println("Writing relations to:", args.OutRelations)
+		f, err := os.Create(args.OutRelations)
+		if err != nil {
+			log.Printf("error creating out-relations file '%s': %v", args.OutRelations, err)
+			return
+		}
+		defer f.Close()
+		enc := json.NewEncoder(f)
+		err = enc.Encode(file_relation_map)
+		if err != nil {
+			log.Printf("error encoding relations: %v", err)
+			return
+		}
+	}
 
 	fileHashes := map[string][32]byte{}
 	if args.OutDepHashes != "" {
 		log.Println("Calculating file hashes")
-		CalculateFileHashes(ctx, fileHashes, all_files_set, base_dir)
+		CalculateFileHashes(fileHashes, all_files_set, base_dir)
 	}
 
 	type fileStatEntry struct {
 		name  string
 		count int
 	}
+
+	log.Println("Calculating dependency hashes")
+	ctx := context.Background()
+	maxWorkers := runtime.GOMAXPROCS(0)
+	sem := semaphore.NewWeighted(int64(maxWorkers))
 	dep_stats_chan := make(chan fileStatEntry, maxWorkers)
 	rev_dep_stats := map[string]int{}
 	rev_dep_stats_lock := sync.Mutex{}
-	log.Println("Calculating dependency hashes")
 	dep_hashes := map[string]string{}
 	dep_hashes_lock := sync.Mutex{}
 	wg := sync.WaitGroup{}
