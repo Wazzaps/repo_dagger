@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"slices"
 	"sort"
@@ -71,7 +72,11 @@ func parseArgs() (*Args, error) {
 	flag.Parse()
 
 	if version {
-		fmt.Println(VERSION)
+		fmt.Printf("version\t%s\n", VERSION)
+		build_info, ok := debug.ReadBuildInfo()
+		if ok {
+			fmt.Printf("%v", build_info)
+		}
 		os.Exit(0)
 	}
 
@@ -172,6 +177,11 @@ func main() {
 			log.Printf("error encoding relations: %v", err)
 			return
 		}
+	}
+
+	if !args.PrintDepStats && !args.PrintRevDepStats && args.OutDepHashes == "" {
+		log.Println("Done")
+		return
 	}
 
 	fileHashes := map[string][32]byte{}

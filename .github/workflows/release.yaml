@@ -1,0 +1,32 @@
+name: Go Release
+
+on:
+  push:
+    tags:
+    - 'v*.*'
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '1.22.x'
+    - name: Install dependencies
+      run: go get .
+    - name: Build
+      run: |
+        GOOS=linux GOARCH=amd64 go build -v -buildvcs=true -trimpath -o repo_dagger-Linux-x86_64 .
+        GOOS=linux GOARCH=arm64 go build -v -buildvcs=true -trimpath -o repo_dagger-Linux-aarch64 .
+        GOOS=linux GOARCH=riscv64 go build -v -buildvcs=true -trimpath -o repo_dagger-Linux-riscv64 .
+        GOOS=linux GOARCH=loong64 go build -v -buildvcs=true -trimpath -o repo_dagger-Linux-loongarch64 .
+        GOOS=darwin GOARCH=amd64 go build -v -buildvcs=true -trimpath -o repo_dagger-Darwin-x86_64 .
+        GOOS=darwin GOARCH=arm64 go build -v -buildvcs=true -trimpath -o repo_dagger-Darwin-arm64 .
+    - name: Upload binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: binaries
+        path: repo_dagger-*

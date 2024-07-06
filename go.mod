@@ -1,4 +1,4 @@
-module wazzaps/repo_dagger
+module github.com/wazzaps/repo_dagger
 
 go 1.22.5
 

@@ -1,0 +1,76 @@
+# This is an example `repo_dagger` config for a Python project named `frobnicator` with `poetry`
+# and `pytest`. Most big projects will need some additional rules for dynamic imports.
+
+# Where the repo is relative to the configuration file.
+base_dir: "."
+# What files to analyze.
+inputs: "tests/**/test_*.py"
+# What files affect every input, e.g. external packages/testsuite options.
+global_deps:
+  - "poetry.lock"
+  - "pyproject.toml"
+  - "pytest.ini"
+# Files that will be skipped in the analysis (Any temporary files should go here).
+global_exclude:
+- "**/*.pyc"
+- "**/*.swp"
+- "**/*_pb2.py"
+- "**/*_pb2.pyi"
+# If targeting python, All imported module names must begin with these.
+# Note that relative imports are not supported.
+root_python_packages:
+  - "frobnicator"
+  - "tests"
+
+# These rules match file paths and create file relations.
+path_rules:
+  # Each pytest file
+  "tests/**/test_*.py":
+    # Visit conftest.py, ../conftest.py, ../../conftest.py, etc. (matching pytest behavior)
+    # Same for __init__.py
+    visit_grand_siblings:
+      - "conftest.py"
+      - "__init__.py"
+    
+  # Generic python rules
+  "**/*.py":
+    # Built-in python `import` parser (careful: it's based on regex, might break).
+    # Does not handle dynamic imports, use regex_rules for that.
+    # It will visit `module/__init__.py`, `module/`, `module.py`, `module.pyx`,
+    # `module.pyi`, and `module.c`.
+    visit_imported_python_modules: true
+    # Same logic as in the pytest rule.
+    visit_grand_siblings:
+      - "__init__.py"
+    # Don't run actions in this block if they match this path pattern.
+    # Use sparingly, or this tool will be less hermetic.
+    exclude:
+      - "frobnicator/something/special.py"
+    # Extra rules if the visited file matches these regex patterns.
+    # Any capture groups are available inside as "$1", "$2", etc.
+    # Because of the capture group feature, the actions will run *for each match*.
+    regex_rules:
+      # To match the start/end of a line, use `(?m:^...)`.
+      # This matches `import_all_submodules(module_name)` and visits all submodules.
+      "(?m:^ *import_all_submodules\\(([A-Za-z_][A-Za-z0-9_.]*)\\))":
+        # We captured the argument of the `import_all_submodules` call, we pass it to
+        # `visit_python_all_submodules_for`, which resolves the module and applies
+        # `visit_siblings: "**/*.py"` where that module is located.
+        visit_python_all_submodules_for: "$1"
+
+      # Same deal, though we don't care about line start/end, so we don't use `(?m:...)`.
+      "os.path.join\\(os.path.dirname\\(__file__\\), \"([^\"]+)\"\\)":
+        # Visit all files matching the pattern relative to the current file.
+        visit_siblings: "$1"
+        # Don't run actions in this block even if they pass the regex if they match
+        # this path pattern.
+        exclude:
+          - "frobnicator/false/positive.py"
+    
+  # Some more rules
+  "frobnicator/database/__init__.py":
+    # The database module loads all sql files.
+    visit_siblings: "**/*.sql"
+  "frobnicator/native/*.c":
+    # Fine-grained header dependencies are not supported, assume all headers are needed.
+    visit_siblings: "**/*.h"
