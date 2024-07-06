@@ -46,25 +46,37 @@ func (res *PythonModuleResolver) Resolve(
 
 	paths := []string{}
 
-	visit_parent := true
+	visit_parent := false
 
 	dir_path := strings.ReplaceAll(module, ".", "/")
 	dir_path_init := filepath.Join(dir_path, "__init__.py")
 	py_path := dir_path + ".py"
 	pyx_path := dir_path + ".pyx"
+	pyi_path := dir_path + ".pyi"
 	c_path := dir_path + ".c"
 	if _, err := os.Stat(filepath.Join(base_dir, dir_path_init)); err == nil {
 		paths = append(paths, dir_path_init)
-	} else if _, err := os.Stat(filepath.Join(base_dir, dir_path)); err == nil {
+		visit_parent = true
+	}
+	if stat_res, err := os.Stat(filepath.Join(base_dir, dir_path)); err == nil && stat_res.IsDir() {
 		// This is a namespace package, no file to import
-	} else if _, err := os.Stat(filepath.Join(base_dir, py_path)); err == nil {
+		visit_parent = true
+	}
+	if _, err := os.Stat(filepath.Join(base_dir, py_path)); err == nil {
 		paths = append(paths, py_path)
-	} else if _, err := os.Stat(filepath.Join(base_dir, pyx_path)); err == nil {
+		visit_parent = true
+	}
+	if _, err := os.Stat(filepath.Join(base_dir, pyx_path)); err == nil {
 		paths = append(paths, pyx_path)
-	} else if _, err := os.Stat(filepath.Join(base_dir, c_path)); err == nil {
+		visit_parent = true
+	}
+	if _, err := os.Stat(filepath.Join(base_dir, pyi_path)); err == nil {
+		paths = append(paths, pyi_path)
+		visit_parent = true
+	}
+	if _, err := os.Stat(filepath.Join(base_dir, c_path)); err == nil {
 		paths = append(paths, c_path)
-	} else {
-		visit_parent = false
+		visit_parent = true
 	}
 
 	if visit_parent {

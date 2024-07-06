@@ -24,6 +24,7 @@ import (
 
 // This value is bumped any time the program may output different output given the same input
 const ALGORITHM_VERSION uint64 = 1
+const VERSION = "1.0.0"
 
 type StatsSortVal int
 
@@ -54,6 +55,9 @@ type Args struct {
 
 func parseArgs() (*Args, error) {
 	// Define command line flags
+	version := false
+	flag.BoolVar(&version, "v", false, "Print version and exit")
+	flag.BoolVar(&version, "version", false, "Print version and exit")
 	config := flag.String("config", "", "Path to config file")
 	verbose := flag.Bool("verbose", false, "Verbose output")
 	print_dep_stats := flag.Bool("print-dep-stats", false, "Print forward dependency statistics")
@@ -65,6 +69,11 @@ func parseArgs() (*Args, error) {
 
 	// Parse command line args
 	flag.Parse()
+
+	if version {
+		fmt.Println(VERSION)
+		os.Exit(0)
+	}
 
 	// Validate the parsed flag values
 	if *config == "" {
@@ -120,7 +129,7 @@ func main() {
 	}
 
 	// Iterate over the inputs
-	base_dir := filepath.Join(filepath.Dir(args.Config), config.Basedir)
+	base_dir := filepath.Join(filepath.Dir(args.Config), config.BaseDir)
 	log.Println("Base Directory:", base_dir)
 	input_files := []string{}
 	for _, input := range config.Inputs.items {
@@ -142,7 +151,11 @@ func main() {
 	all_files_set := map[string]bool{}
 	file_relation_map := map[string][]string{}
 	log.Println("Generating dependency graph")
-	VisitRecursively(all_files_set, file_relation_map, input_files, config, args, base_dir)
+	err = VisitRecursively(all_files_set, file_relation_map, input_files, config, args, base_dir)
+	if err != nil {
+		log.Printf("error while visiting files: %v", err)
+		return
+	}
 
 	if args.OutRelations != "" {
 		// Write as json
@@ -226,8 +239,8 @@ func main() {
 	}
 
 	if args.PrintDepStats {
-		sorted_stats := make([]fileStatEntry, 0, len(file_relation_map))
-		for i := 0; i < len(file_relation_map); i++ {
+		sorted_stats := make([]fileStatEntry, 0, len(input_files))
+		for i := 0; i < len(input_files); i++ {
 			sorted_stats = append(sorted_stats, <-dep_stats_chan)
 		}
 		sort.Slice(sorted_stats, func(i, j int) bool {

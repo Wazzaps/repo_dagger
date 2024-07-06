@@ -133,10 +133,23 @@ func applyActions(
 			for _, mod_name := range regex_result.applyOnTemplates(
 				actions.VisitPythonAllSubmodulesFor.items,
 			) {
-				full_mod_name, ok := pyimports_idents[mod_name]
-				if !ok {
-					return fmt.Errorf("module ident '%s' not found", mod_name)
+				found_in_root_pkg := false
+				var full_mod_name string
+				for _, root_package := range config.RootPythonPackages.items {
+					if strings.HasPrefix(mod_name, root_package+".") || mod_name == root_package {
+						found_in_root_pkg = true
+						full_mod_name = mod_name
+					}
 				}
+
+				if !found_in_root_pkg {
+					var ok bool
+					full_mod_name, ok = pyimports_idents[mod_name]
+					if !ok {
+						return fmt.Errorf("module ident '%s' not found", mod_name)
+					}
+				}
+
 				if args.Verbose {
 					log.Println("Visiting all submodules of:", mod_name, "->", full_mod_name)
 				}

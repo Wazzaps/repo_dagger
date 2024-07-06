@@ -43,7 +43,7 @@ type PathRule struct {
 }
 
 type Config struct {
-	Basedir            string
+	BaseDir            string `yaml:"base_dir"`
 	Inputs             StringOrStringArr
 	GlobalDeps         StringOrStringArr   `yaml:"global_deps"`
 	GlobalExclude      StringOrStringArr   `yaml:"global_exclude"`
