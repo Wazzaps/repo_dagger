@@ -4,9 +4,14 @@ on:
   push:
     tags:
     - 'v*.*'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  attestations: write
 
 jobs:
-  goreleaser:
+  build:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -30,3 +35,6 @@ jobs:
       with:
         name: binaries
         path: repo_dagger-*
+    - uses: actions/attest-build-provenance@v1
+      with:
+        subject-path: repo_dagger-*
