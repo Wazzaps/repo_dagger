@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"runtime/pprof"
 	"slices"
 	"sort"
 	"strings"
@@ -41,6 +42,7 @@ type Args struct {
 	PrintDepStats    bool
 	PrintRevDepStats bool
 	StatsSort        StatsSortVal
+	SelfProfile      bool
 }
 
 func parseArgs() (*Args, error) {
@@ -50,6 +52,7 @@ func parseArgs() (*Args, error) {
 	print_dep_stats := flag.Bool("print-dep-stats", false, "Print forward dependency statistics")
 	print_rev_stats := flag.Bool("print-rev-dep-stats", false, "Print reverse dependency statistics")
 	stats_sort := flag.String("stats-sort", "count", "Sort statistics by 'count' or 'name'")
+	self_profile := flag.Bool("self-profile", false, "Profile the program into 'repo_dagger.prof'")
 
 	// Parse command line args
 	flag.Parse()
@@ -69,6 +72,7 @@ func parseArgs() (*Args, error) {
 		PrintDepStats:    *print_dep_stats,
 		PrintRevDepStats: *print_rev_stats,
 		StatsSort:        stats_sort_val,
+		SelfProfile:      *self_profile,
 	}, nil
 }
 
@@ -79,6 +83,15 @@ func main() {
 		flag.Usage()
 		log.Println("Error:", err)
 		return
+	}
+
+	if args.SelfProfile {
+		f, err := os.Create("repo_dagger.prof")
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
 	}
 
 	log.Println("Loading Config:", args.Config)
