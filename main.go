@@ -25,7 +25,7 @@ import (
 
 // This value is bumped any time the program may output different output given the same input
 const ALGORITHM_VERSION uint64 = 1
-const VERSION = "1.2.0"
+const VERSION = "1.3.0"
 
 type StatsSortVal int
 
@@ -54,6 +54,7 @@ type Args struct {
 	OutRelations        string
 	OutRecursiveDeps    string
 	OutRecursiveDepsFor string
+	HashSalt            string
 }
 
 func parseArgs() (*Args, error) {
@@ -71,6 +72,7 @@ func parseArgs() (*Args, error) {
 	out_relations := flag.String("out-relations", "", "Output relations to the specified file")
 	out_recursive_deps := flag.String("out-recursive-deps", "", "Output recursive dependencies of the input file specified in '-out-recursive-deps-for' to the specified file")
 	out_recursive_deps_for := flag.String("out-recursive-deps-for", "", "Output recursive dependencies for the specified input file to the file specified in '-out-recursive-deps'")
+	hash_salt := flag.String("hash-salt", "", "Include this string in the dependency hash calculation. Use for cache busting.")
 
 	// Parse command line args
 	flag.Parse()
@@ -108,6 +110,7 @@ func parseArgs() (*Args, error) {
 		OutRelations:        *out_relations,
 		OutRecursiveDeps:    *out_recursive_deps,
 		OutRecursiveDepsFor: *out_recursive_deps_for,
+		HashSalt:            *hash_salt,
 	}, nil
 }
 
@@ -247,6 +250,7 @@ func main() {
 				binary.Write(algo_ver, binary.LittleEndian, ALGORITHM_VERSION)
 
 				hasher.Write(algo_ver.Bytes())
+				hasher.Write([]byte(args.HashSalt))
 				hasher.Write(config_hash[:])
 				hasher.Write([]byte(file_name))
 

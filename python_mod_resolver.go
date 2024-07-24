@@ -4,13 +4,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
-
-var python_import_parser_simple = regexp.MustCompile(`(?m:^ *import ([^ \n]+))`)
-var python_import_parser_from = regexp.MustCompile(`(?m:^ *from ([^ \n]+) import (\([^)]+\)|[^\n]+))`)
-var python_import_parser_ident = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
 
 type PythonModuleResolverResult struct {
 	Paths []string

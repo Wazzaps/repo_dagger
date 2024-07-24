@@ -12,6 +12,10 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 )
 
+var python_import_parser_simple = regexp.MustCompile(`(?m:^ *import ([^ \n]+)( as [A-Za-z_][A-Za-z0-9_]*)?)`)
+var python_import_parser_from = regexp.MustCompile(`(?m:^ *from ([^ \n]+) import (\([^)]+\)|[^\n]+))`)
+var python_import_parser_ident = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)( as [A-Za-z_][A-Za-z0-9_]*)?`)
+
 type RegexResult []string
 
 func (res RegexResult) applyOnTemplate(template string) string {
@@ -115,16 +119,28 @@ func applyActions(
 		pyimports_idents := map[string]string{}
 		for _, match := range python_import_parser_simple.FindAllStringSubmatch(**file_data, -1) {
 			pyimports = append(pyimports, match[1])
-			pyimports_idents[match[1]] = match[1]
+			if match[2] != "" {
+				// "import ... as ..."
+				pyimports_idents[match[2][4:]] = match[1]
+			} else {
+				// "import ..."
+				pyimports_idents[match[1]] = match[1]
+			}
 		}
 		for _, match := range python_import_parser_from.FindAllStringSubmatch(**file_data, -1) {
 			pyimports = append(pyimports, match[1])
 			for _, import_ident := range python_import_parser_ident.FindAllStringSubmatch(
 				match[2], -1,
 			) {
-				full_mod_name := match[1] + "." + import_ident[0]
+				full_mod_name := match[1] + "." + import_ident[1]
 				pyimports = append(pyimports, full_mod_name)
-				pyimports_idents[import_ident[0]] = full_mod_name
+				if import_ident[2] != "" {
+					// "from ... import ... as ..."
+					pyimports_idents[import_ident[2][4:]] = full_mod_name
+				} else {
+					// "from ... import ..."
+					pyimports_idents[import_ident[1]] = full_mod_name
+				}
 			}
 		}
 
