@@ -44,14 +44,16 @@ func StatsSortValFromString(val string) (StatsSortVal, error) {
 }
 
 type Args struct {
-	Config           string
-	Verbose          bool
-	PrintDepStats    bool
-	PrintRevDepStats bool
-	StatsSort        StatsSortVal
-	SelfProfile      bool
-	OutDepHashes     string
-	OutRelations     string
+	Config              string
+	Verbose             bool
+	PrintDepStats       bool
+	PrintRevDepStats    bool
+	StatsSort           StatsSortVal
+	SelfProfile         bool
+	OutDepHashes        string
+	OutRelations        string
+	OutRecursiveDeps    string
+	OutRecursiveDepsFor string
 }
 
 func parseArgs() (*Args, error) {
@@ -67,6 +69,8 @@ func parseArgs() (*Args, error) {
 	self_profile := flag.Bool("self-profile", false, "Profile the program into 'repo_dagger.prof'")
 	out_dep_hashes := flag.String("out-dep-hashes", "", "Output dependency hashes to the specified file")
 	out_relations := flag.String("out-relations", "", "Output relations to the specified file")
+	out_recursive_deps := flag.String("out-recursive-deps", "", "Output recursive dependencies of the input file specified in '-out-recursive-deps-for' to the specified file")
+	out_recursive_deps_for := flag.String("out-recursive-deps-for", "", "Output recursive dependencies for the specified input file to the file specified in '-out-recursive-deps'")
 
 	// Parse command line args
 	flag.Parse()
@@ -89,15 +93,21 @@ func parseArgs() (*Args, error) {
 		return nil, err
 	}
 
+	if (*out_recursive_deps == "") != (*out_recursive_deps_for == "") {
+		return nil, fmt.Errorf("both -out-recursive-deps and -out-recursive-deps-for must be specified together")
+	}
+
 	return &Args{
-		Config:           *config,
-		Verbose:          *verbose,
-		PrintDepStats:    *print_dep_stats,
-		PrintRevDepStats: *print_rev_stats,
-		StatsSort:        stats_sort_val,
-		SelfProfile:      *self_profile,
-		OutDepHashes:     *out_dep_hashes,
-		OutRelations:     *out_relations,
+		Config:              *config,
+		Verbose:             *verbose,
+		PrintDepStats:       *print_dep_stats,
+		PrintRevDepStats:    *print_rev_stats,
+		StatsSort:           stats_sort_val,
+		SelfProfile:         *self_profile,
+		OutDepHashes:        *out_dep_hashes,
+		OutRelations:        *out_relations,
+		OutRecursiveDeps:    *out_recursive_deps,
+		OutRecursiveDepsFor: *out_recursive_deps_for,
 	}, nil
 }
 
@@ -106,8 +116,7 @@ func main() {
 	args, err := parseArgs()
 	if err != nil {
 		flag.Usage()
-		log.Println("Error:", err)
-		return
+		log.Fatalf("Error: %v\n", err)
 	}
 
 	if args.SelfProfile {
@@ -124,8 +133,7 @@ func main() {
 	// Load the config file
 	config, config_hash, err := LoadConfig(args.Config)
 	if err != nil {
-		log.Printf("failed to load config file: %v", err)
-		return
+		log.Fatalf("failed to load config file: %v\n", err)
 	}
 
 	if args.Verbose {
@@ -140,16 +148,14 @@ func main() {
 	for _, input := range config.Inputs.items {
 		input_files_chunk, err := doublestar.Glob(os.DirFS(base_dir), input)
 		if err != nil {
-			log.Printf("error while collecting input files: glob '%s': %v", input, err)
-			return
+			log.Fatalf("error while collecting input files: glob '%s': %v\n", input, err)
 		}
 		input_files = append(input_files, input_files_chunk...)
 	}
 	slices.Sort(input_files)
 	input_files = slices.Compact(input_files)
 	if len(input_files) == 0 {
-		log.Println("No input files found. Exiting.")
-		return
+		log.Fatalln("No input files found. Exiting.")
 	}
 
 	// Visit each file recursively, to build the relations map
@@ -158,8 +164,7 @@ func main() {
 	log.Println("Generating dependency graph")
 	err = VisitRecursively(all_files_set, file_relation_map, input_files, config, args, base_dir)
 	if err != nil {
-		log.Printf("error while visiting files: %v", err)
-		return
+		log.Fatalf("error while visiting files: %v\n", err)
 	}
 
 	if args.OutRelations != "" {
@@ -167,19 +172,17 @@ func main() {
 		log.Println("Writing relations to:", args.OutRelations)
 		f, err := os.Create(args.OutRelations)
 		if err != nil {
-			log.Printf("error creating out-relations file '%s': %v", args.OutRelations, err)
-			return
+			log.Fatalf("error creating out-relations file '%s': %v\n", args.OutRelations, err)
 		}
 		defer f.Close()
 		enc := json.NewEncoder(f)
 		err = enc.Encode(file_relation_map)
 		if err != nil {
-			log.Printf("error encoding relations: %v", err)
-			return
+			log.Fatalf("error encoding relations: %v\n", err)
 		}
 	}
 
-	if !args.PrintDepStats && !args.PrintRevDepStats && args.OutDepHashes == "" {
+	if !args.PrintDepStats && !args.PrintRevDepStats && args.OutDepHashes == "" && args.OutRecursiveDeps == "" {
 		log.Println("Done")
 		return
 	}
@@ -210,6 +213,20 @@ func main() {
 		go func() {
 			sem.Acquire(ctx, 1)
 			dep_list := BuildFullDepList(file_relation_map, file_name)
+			if args.OutRecursiveDepsFor == file_name {
+				// Write as json
+				log.Println("Writing recursive dependencies of", file_name, "to:", args.OutRecursiveDeps)
+				f, err := os.Create(args.OutRecursiveDeps)
+				if err != nil {
+					log.Fatalf("error creating out-recursive-deps file '%s': %v\n", args.OutRecursiveDeps, err)
+				}
+				defer f.Close()
+				enc := json.NewEncoder(f)
+				err = enc.Encode(dep_list)
+				if err != nil {
+					log.Fatalf("error encoding recursive deps: %v\n", err)
+				}
+			}
 			if args.PrintDepStats {
 				dep_stats_chan <- fileStatEntry{
 					name:  file_name,
@@ -259,7 +276,7 @@ func main() {
 			} else if args.StatsSort == STATS_SORT_NAME {
 				return sorted_stats[i].name < sorted_stats[j].name
 			} else {
-				log.Panicf("Invalid stats sort value: %d", args.StatsSort)
+				log.Panicf("Invalid stats sort value: %d\n", args.StatsSort)
 				return false
 			}
 		})
@@ -274,15 +291,13 @@ func main() {
 		log.Println("Writing dependency hashes to:", args.OutDepHashes)
 		f, err := os.Create(args.OutDepHashes)
 		if err != nil {
-			log.Printf("error creating out-dep-hashes file '%s': %v", args.OutDepHashes, err)
-			return
+			log.Fatalf("error creating out-dep-hashes file '%s': %v\n", args.OutDepHashes, err)
 		}
 		defer f.Close()
 		enc := json.NewEncoder(f)
 		err = enc.Encode(dep_hashes)
 		if err != nil {
-			log.Printf("error encoding dep hashes: %v", err)
-			return
+			log.Fatalf("error encoding dep hashes: %v\n", err)
 		}
 	}
 
