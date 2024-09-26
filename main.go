@@ -16,6 +16,7 @@ import (
 	"runtime/pprof"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -25,7 +26,7 @@ import (
 
 // This value is bumped any time the program may output different output given the same input
 const ALGORITHM_VERSION uint64 = 1
-const VERSION = "1.3.0"
+const VERSION = "1.4.0"
 
 type StatsSortVal int
 
@@ -46,6 +47,7 @@ func StatsSortValFromString(val string) (StatsSortVal, error) {
 type Args struct {
 	Config              string
 	Verbose             bool
+	InputFiles          []string
 	PrintDepStats       bool
 	PrintRevDepStats    bool
 	StatsSort           StatsSortVal
@@ -64,6 +66,7 @@ func parseArgs() (*Args, error) {
 	flag.BoolVar(&version, "version", false, "Print version and exit")
 	config := flag.String("config", "", "Path to config file")
 	verbose := flag.Bool("verbose", false, "Verbose output")
+	input_files := flag.String("input-files", "", "Comma separated list of input files (overrides config)")
 	print_dep_stats := flag.Bool("print-dep-stats", false, "Print forward dependency statistics")
 	print_rev_stats := flag.Bool("print-rev-dep-stats", false, "Print reverse dependency statistics")
 	stats_sort := flag.String("stats-sort", "count", "Sort statistics by 'count' or 'name'")
@@ -102,6 +105,7 @@ func parseArgs() (*Args, error) {
 	return &Args{
 		Config:              *config,
 		Verbose:             *verbose,
+		InputFiles:          strings.Split(*input_files, ","),
 		PrintDepStats:       *print_dep_stats,
 		PrintRevDepStats:    *print_rev_stats,
 		StatsSort:           stats_sort_val,
@@ -137,6 +141,10 @@ func main() {
 	config, config_hash, err := LoadConfig(args.Config)
 	if err != nil {
 		log.Fatalf("failed to load config file: %v\n", err)
+	}
+	if len(args.InputFiles) > 0 && args.InputFiles[0] != "" {
+		// Override the input files if provided via command line
+		config.Inputs.items = args.InputFiles
 	}
 
 	if args.Verbose {
